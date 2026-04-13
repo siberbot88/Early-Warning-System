@@ -1,7 +1,8 @@
 import os
 import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
 
 st.set_page_config(
     page_title="Early Warning Dashboard",
@@ -17,6 +18,8 @@ LIGHT_BG = "#F7F9FC"
 BORDER = "#E6ECF5"
 TEXT = "#1F2937"
 MUTED = "#6B7280"
+
+PLOTLY_PALETTE = [PRIMARY_BLUE, DEEP_NAVY, ACCENT_YELLOW, "#7BA3E6", "#D9E5FF"]
 
 
 def icon_bar_chart():
@@ -55,6 +58,21 @@ def icon_academic():
       <path stroke-linecap="round" stroke-linejoin="round" d="M7 12v4c0 1.5 2.24 3 5 3s5-1.5 5-3v-4" />
     </svg>
     """
+
+
+def style_plotly(fig):
+    fig.update_layout(
+        plot_bgcolor=WHITE,
+        paper_bgcolor=WHITE,
+        font=dict(color=TEXT, family="Arial"),
+        title_font=dict(color=DEEP_NAVY, size=18),
+        legend_title_font=dict(color=DEEP_NAVY),
+        legend_font=dict(color=TEXT),
+        margin=dict(l=20, r=20, t=50, b=20),
+    )
+    fig.update_xaxes(showgrid=False, linecolor=BORDER)
+    fig.update_yaxes(showgrid=True, gridcolor="#EEF3FA", linecolor=BORDER)
+    return fig
 
 
 st.markdown(
@@ -225,10 +243,6 @@ st.markdown(
         overflow: hidden;
     }}
 
-    div[data-testid="stMetric"] {{
-        background: transparent;
-    }}
-
     .small-note {{
         color: var(--muted);
         font-size: 0.88rem;
@@ -275,9 +289,7 @@ feature_importance_dt = load_csv(FEATURE_PATH)
 at_risk_students = load_csv(RISK_PATH)
 
 if merged_data is None:
-    st.error(
-        "File data utama tidak ditemukan. Pastikan file 'data/processed/merged_processed_oulad.csv' tersedia."
-    )
+    st.error("File data utama tidak ditemukan. Pastikan file 'data/processed/merged_processed_oulad.csv' tersedia.")
     st.stop()
 
 st.markdown(
@@ -296,37 +308,53 @@ st.markdown(
             performa asesmen, dan hasil model prediktif untuk mendukung deteksi dini mahasiswa
             berisiko gagal atau withdrawal pada pembelajaran daring.
         </p>
-        <div class="badge">The Open University &nbsp;|&nbsp; Learning Analytics Dashboard</div>
+        <div class="badge">The Open University | Learning Analytics Dashboard</div>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-total_students = len(merged_data)
+# Sidebar filters
+st.sidebar.markdown("## Filter Dashboard")
+filtered_data = merged_data.copy()
+
+if "code_module" in merged_data.columns:
+    modules = ["All"] + sorted(merged_data["code_module"].dropna().astype(str).unique().tolist())
+    selected_module = st.sidebar.selectbox("Code Module", modules)
+    if selected_module != "All":
+        filtered_data = filtered_data[filtered_data["code_module"].astype(str) == selected_module]
+
+if "final_result" in merged_data.columns:
+    results = ["All"] + sorted(filtered_data["final_result"].dropna().astype(str).unique().tolist())
+    selected_result = st.sidebar.selectbox("Final Result", results)
+    if selected_result != "All":
+        filtered_data = filtered_data[filtered_data["final_result"].astype(str) == selected_result]
+
+total_students = len(filtered_data)
 withdrawal_rate = (
-    merged_data["final_result"].isin(["Withdrawn", "Withdrawal"]).mean() * 100
-    if "final_result" in merged_data.columns
+    filtered_data["final_result"].isin(["Withdrawn", "Withdrawal"]).mean() * 100
+    if "final_result" in filtered_data.columns and len(filtered_data) > 0
     else 0
 )
 fail_rate = (
-    merged_data["final_result"].eq("Fail").mean() * 100
-    if "final_result" in merged_data.columns
+    filtered_data["final_result"].eq("Fail").mean() * 100
+    if "final_result" in filtered_data.columns and len(filtered_data) > 0
     else 0
 )
 engagement_rate = (
-    merged_data["low_engagement"].eq(0).mean() * 100
-    if "low_engagement" in merged_data.columns
-    else None
+    filtered_data["low_engagement"].eq(0).mean() * 100
+    if "low_engagement" in filtered_data.columns and len(filtered_data) > 0
+    else 0
 )
 completion_rate = (
-    merged_data["assessment_completion_rate"].mean() * 100
-    if "assessment_completion_rate" in merged_data.columns
-    else None
+    filtered_data["assessment_completion_rate"].mean() * 100
+    if "assessment_completion_rate" in filtered_data.columns and len(filtered_data) > 0
+    else 0
 )
 at_risk_rate = (
-    merged_data["risk_label"].eq(1).mean() * 100
-    if "risk_label" in merged_data.columns
-    else None
+    filtered_data["risk_label"].eq(1).mean() * 100
+    if "risk_label" in filtered_data.columns and len(filtered_data) > 0
+    else 0
 )
 
 st.markdown(
@@ -341,84 +369,33 @@ st.markdown(
 
 c1, c2, c3, c4, c5 = st.columns(5)
 
-with c1:
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-top">
-                <div class="metric-label">Total Students</div>
-                <div class="icon-wrap">{icon_users()}</div>
-            </div>
-            <div class="metric-value">{total_students:,}</div>
-            <div class="metric-foot">Total record mahasiswa pada dataset terintegrasi</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+cards = [
+    ("Total Students", f"{total_students:,}", "Total record mahasiswa pada data terfilter", icon_users()),
+    ("Withdrawal Rate", f"{withdrawal_rate:.2f}%", "Persentase mahasiswa yang withdrawal", icon_warning()),
+    ("Fail Rate", f"{fail_rate:.2f}%", "Persentase mahasiswa yang tidak lulus", icon_academic()),
+    ("Engagement Rate", f"{engagement_rate:.2f}%", "Mahasiswa dengan engagement tidak rendah", icon_bar_chart()),
+    ("At-Risk Rate", f"{at_risk_rate:.2f}%", "Mahasiswa yang masuk kategori berisiko", icon_warning()),
+]
 
-with c2:
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-top">
-                <div class="metric-label">Withdrawal Rate</div>
-                <div class="icon-wrap">{icon_warning()}</div>
+for col, (label, value, foot, icon) in zip([c1, c2, c3, c4, c5], cards):
+    with col:
+        st.markdown(
+            f"""
+            <div class="metric-card">
+                <div class="metric-top">
+                    <div class="metric-label">{label}</div>
+                    <div class="icon-wrap">{icon}</div>
+                </div>
+                <div class="metric-value">{value}</div>
+                <div class="metric-foot">{foot}</div>
             </div>
-            <div class="metric-value">{withdrawal_rate:.2f}%</div>
-            <div class="metric-foot">Persentase mahasiswa yang withdrawal</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with c3:
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-top">
-                <div class="metric-label">Fail Rate</div>
-                <div class="icon-wrap">{icon_academic()}</div>
-            </div>
-            <div class="metric-value">{fail_rate:.2f}%</div>
-            <div class="metric-foot">Persentase mahasiswa yang tidak lulus</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with c4:
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-top">
-                <div class="metric-label">Engagement Rate</div>
-                <div class="icon-wrap">{icon_bar_chart()}</div>
-            </div>
-            <div class="metric-value">{engagement_rate:.2f}%</div>
-            <div class="metric-foot">Mahasiswa dengan engagement tidak rendah</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-with c5:
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-top">
-                <div class="metric-label">At-Risk Rate</div>
-                <div class="icon-wrap">{icon_warning()}</div>
-            </div>
-            <div class="metric-value">{at_risk_rate:.2f}%</div>
-            <div class="metric-foot">Mahasiswa yang masuk kategori berisiko</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+            """,
+            unsafe_allow_html=True,
+        )
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
-left, right = st.columns([1.1, 1])
+left, right = st.columns([1.05, 0.95])
 
 with left:
     st.markdown(
@@ -430,27 +407,24 @@ with left:
         """,
         unsafe_allow_html=True,
     )
-    final_result_count = (
-        merged_data["final_result"].value_counts()
-        if "final_result" in merged_data.columns
-        else pd.Series(dtype=int)
-    )
 
-    if not final_result_count.empty:
-        fig, ax = plt.subplots(figsize=(7, 4.5))
-        final_result_count.plot(kind="bar", ax=ax)
-        ax.set_title("Distribusi Final Result")
-        ax.set_xlabel("Final Result")
-        ax.set_ylabel("Jumlah Mahasiswa")
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        st.pyplot(fig)
-        st.dataframe(
-            final_result_count.reset_index().rename(
-                columns={"index": "final_result", "final_result": "jumlah_mahasiswa"}
-            ),
-            use_container_width=True,
+    if "final_result" in filtered_data.columns and len(filtered_data) > 0:
+        final_result_count = filtered_data["final_result"].value_counts().reset_index()
+        final_result_count.columns = ["final_result", "jumlah_mahasiswa"]
+
+        fig = px.bar(
+            final_result_count,
+            x="final_result",
+            y="jumlah_mahasiswa",
+            color="final_result",
+            color_discrete_sequence=PLOTLY_PALETTE,
+            title="Distribusi Final Result",
         )
+        fig = style_plotly(fig)
+        fig.update_layout(showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.dataframe(final_result_count, use_container_width=True)
     else:
         st.info("Kolom final_result tidak tersedia.")
 
@@ -459,23 +433,34 @@ with right:
         f"""
         <div class="section-title">
             <div class="icon-wrap">{icon_academic()}</div>
-            <h3>Ringkasan Assessment Completion</h3>
+            <h3>Assessment Completion Summary</h3>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    if "assessment_completion_rate" in merged_data.columns:
-        summary_completion = merged_data["assessment_completion_rate"].describe().round(4)
-        st.dataframe(summary_completion.to_frame("value"), use_container_width=True)
 
-        fig, ax = plt.subplots(figsize=(7, 4.5))
-        merged_data.groupby("final_result")["assessment_completion_rate"].mean().plot(kind="bar", ax=ax)
-        ax.set_title("Assessment Completion Rate per Final Result")
-        ax.set_xlabel("Final Result")
-        ax.set_ylabel("Completion Rate")
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        st.pyplot(fig)
+    if "assessment_completion_rate" in filtered_data.columns and len(filtered_data) > 0:
+        summary_completion = filtered_data["assessment_completion_rate"].describe().round(4).reset_index()
+        summary_completion.columns = ["statistic", "value"]
+        st.dataframe(summary_completion, use_container_width=True)
+
+        if "final_result" in filtered_data.columns:
+            completion_by_result = (
+                filtered_data.groupby("final_result")["assessment_completion_rate"]
+                .mean()
+                .reset_index()
+            )
+            fig = px.bar(
+                completion_by_result,
+                x="final_result",
+                y="assessment_completion_rate",
+                color="final_result",
+                color_discrete_sequence=PLOTLY_PALETTE,
+                title="Assessment Completion Rate per Final Result",
+            )
+            fig = style_plotly(fig)
+            fig.update_layout(showlegend=False)
+            st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Kolom assessment_completion_rate tidak tersedia.")
 
@@ -491,23 +476,38 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if {"code_module", "final_result"}.issubset(merged_data.columns):
+if {"code_module", "final_result"}.issubset(filtered_data.columns) and len(filtered_data) > 0:
     module_result_pct = pd.crosstab(
-        merged_data["code_module"],
-        merged_data["final_result"],
+        filtered_data["code_module"],
+        filtered_data["final_result"],
+        normalize="index",
+    ).reset_index()
+
+    module_result_pct_long = module_result_pct.melt(
+        id_vars="code_module",
+        var_name="final_result",
+        value_name="percentage"
+    )
+    module_result_pct_long["percentage"] = module_result_pct_long["percentage"] * 100
+
+    fig = px.bar(
+        module_result_pct_long,
+        x="code_module",
+        y="percentage",
+        color="final_result",
+        color_discrete_sequence=PLOTLY_PALETTE,
+        title="Persentase Final Result per Modul",
+    )
+    fig = style_plotly(fig)
+    fig.update_layout(barmode="stack")
+    st.plotly_chart(fig, use_container_width=True)
+
+    display_table = pd.crosstab(
+        filtered_data["code_module"],
+        filtered_data["final_result"],
         normalize="index",
     ) * 100
-
-    st.dataframe(module_result_pct.round(2), use_container_width=True)
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    module_result_pct.plot(kind="bar", stacked=True, ax=ax)
-    ax.set_title("Persentase Final Result per Modul")
-    ax.set_xlabel("Code Module")
-    ax.set_ylabel("Persentase (%)")
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    st.pyplot(fig)
+    st.dataframe(display_table.round(2), use_container_width=True)
 else:
     st.info("Kolom code_module/final_result tidak tersedia.")
 
@@ -525,20 +525,27 @@ with col_a:
         """,
         unsafe_allow_html=True,
     )
-    vle_cols = [c for c in ["total_clicks", "active_days"] if c in merged_data.columns]
-    if "final_result" in merged_data.columns and vle_cols:
-        vle_summary = merged_data.groupby("final_result")[vle_cols].mean().round(2)
+
+    if {"final_result", "total_clicks", "active_days"}.issubset(filtered_data.columns) and len(filtered_data) > 0:
+        vle_summary = (
+            filtered_data.groupby("final_result")[["total_clicks", "active_days"]]
+            .mean()
+            .round(2)
+            .reset_index()
+        )
         st.dataframe(vle_summary, use_container_width=True)
 
-        if "total_clicks" in merged_data.columns:
-            fig, ax = plt.subplots(figsize=(7, 4.5))
-            merged_data.groupby("final_result")["total_clicks"].mean().plot(kind="bar", ax=ax)
-            ax.set_title("Rata-rata Total Clicks")
-            ax.set_xlabel("Final Result")
-            ax.set_ylabel("Rata-rata Total Clicks")
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
-            st.pyplot(fig)
+        fig = px.bar(
+            vle_summary,
+            x="final_result",
+            y="total_clicks",
+            color="final_result",
+            color_discrete_sequence=PLOTLY_PALETTE,
+            title="Rata-rata Total Clicks",
+        )
+        fig = style_plotly(fig)
+        fig.update_layout(showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Kolom aktivitas VLE tidak lengkap.")
 
@@ -552,20 +559,28 @@ with col_b:
         """,
         unsafe_allow_html=True,
     )
-    assessment_cols = [c for c in ["avg_score", "assessment_completion_rate"] if c in merged_data.columns]
-    if "final_result" in merged_data.columns and assessment_cols:
-        assessment_summary = merged_data.groupby("final_result")[assessment_cols].mean().round(2)
+
+    needed_cols = {"final_result", "avg_score", "assessment_completion_rate"}
+    if needed_cols.issubset(filtered_data.columns) and len(filtered_data) > 0:
+        assessment_summary = (
+            filtered_data.groupby("final_result")[["avg_score", "assessment_completion_rate"]]
+            .mean()
+            .round(2)
+            .reset_index()
+        )
         st.dataframe(assessment_summary, use_container_width=True)
 
-        if "avg_score" in merged_data.columns:
-            fig, ax = plt.subplots(figsize=(7, 4.5))
-            merged_data.groupby("final_result")["avg_score"].mean().plot(kind="bar", ax=ax)
-            ax.set_title("Rata-rata Avg Score")
-            ax.set_xlabel("Final Result")
-            ax.set_ylabel("Rata-rata Avg Score")
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
-            st.pyplot(fig)
+        fig = px.bar(
+            assessment_summary,
+            x="final_result",
+            y="avg_score",
+            color="final_result",
+            color_discrete_sequence=PLOTLY_PALETTE,
+            title="Rata-rata Avg Score",
+        )
+        fig = style_plotly(fig)
+        fig.update_layout(showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Kolom asesmen tidak lengkap.")
 
@@ -581,29 +596,30 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if model_comparison is not None:
-    st.markdown(
-        '<div class="small-note">Tabel berikut menampilkan perbandingan performa model prediktif yang digunakan untuk mendukung sistem early warning.</div>',
-        unsafe_allow_html=True,
-    )
+if model_comparison is not None and len(model_comparison) > 0:
     st.dataframe(model_comparison, use_container_width=True)
 
-    numeric_plot_col = None
-    for candidate in ["F1-Score", "F1_Score", "Recall", "Accuracy"]:
-        if candidate in model_comparison.columns:
-            numeric_plot_col = candidate
-            break
+    metric_cols = [c for c in ["Accuracy", "Precision", "Recall", "F1-Score"] if c in model_comparison.columns]
+    if "Model" in model_comparison.columns and metric_cols:
+        compare_long = model_comparison.melt(
+            id_vars="Model",
+            value_vars=metric_cols,
+            var_name="Metric",
+            value_name="Score"
+        )
 
-    if numeric_plot_col is not None and "Model" in model_comparison.columns:
-        fig, ax = plt.subplots(figsize=(7, 4.5))
-        ax.bar(model_comparison["Model"], model_comparison[numeric_plot_col])
-        ax.set_title(f"Perbandingan {numeric_plot_col}")
-        ax.set_xlabel("Model")
-        ax.set_ylabel(numeric_plot_col)
-        ax.set_ylim(0, 1)
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        st.pyplot(fig)
+        fig = px.bar(
+            compare_long,
+            x="Model",
+            y="Score",
+            color="Metric",
+            barmode="group",
+            color_discrete_sequence=PLOTLY_PALETTE,
+            title="Perbandingan Metrik Model",
+        )
+        fig = style_plotly(fig)
+        fig.update_yaxes(range=[0, 1])
+        st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("File model_comparison.csv belum tersedia di folder data/output.")
 
@@ -623,14 +639,18 @@ if feature_importance_dt is not None and {"feature", "importance"}.issubset(feat
     top_features = feature_importance_dt.head(10)
     st.dataframe(top_features, use_container_width=True)
 
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.barh(top_features["feature"][::-1], top_features["importance"][::-1])
-    ax.set_title("Top 10 Feature Importance")
-    ax.set_xlabel("Importance")
-    ax.set_ylabel("Feature")
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    st.pyplot(fig)
+    fig = px.bar(
+        top_features.sort_values("importance"),
+        x="importance",
+        y="feature",
+        orientation="h",
+        color="importance",
+        color_continuous_scale=[[0, PRIMARY_BLUE], [1, ACCENT_YELLOW]],
+        title="Top 10 Feature Importance",
+    )
+    fig = style_plotly(fig)
+    fig.update_layout(coloraxis_showscale=False)
+    st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("File feature_importance_dt.csv belum tersedia atau formatnya belum sesuai.")
 
@@ -646,14 +666,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if at_risk_students is not None:
-    st.markdown(
-        '<div class="small-note">Bagian ini menampilkan sampel mahasiswa yang masuk kategori berisiko dan dapat diprioritaskan untuk intervensi.</div>',
-        unsafe_allow_html=True,
-    )
+if at_risk_students is not None and len(at_risk_students) > 0:
     st.dataframe(at_risk_students.head(20), use_container_width=True)
 else:
-    if "risk_label" in merged_data.columns:
+    if "risk_label" in filtered_data.columns:
         risk_cols = [
             c for c in [
                 "id_student",
@@ -665,10 +681,10 @@ else:
                 "avg_score",
                 "assessment_completion_rate",
             ]
-            if c in merged_data.columns
+            if c in filtered_data.columns
         ]
         st.dataframe(
-            merged_data[merged_data["risk_label"] == 1][risk_cols].head(20),
+            filtered_data[filtered_data["risk_label"] == 1][risk_cols].head(20),
             use_container_width=True,
         )
     else:
