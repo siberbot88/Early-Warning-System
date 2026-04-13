@@ -333,7 +333,7 @@ def metric_card(label: str, value: str, foot: str, icon_svg: str):
 # =========================================================
 # PATHS
 # =========================================================
-BASE_DIR = os.path.dirname(__file__) if "__file__" in globals() else os.getcwd()
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 PROCESSED_PATH = os.path.join(BASE_DIR, "data", "processed", "merged_processed_oulad.csv")
 MODEL_PATH = os.path.join(BASE_DIR, "data", "output", "model_comparison.csv")
 FEATURE_PATH = os.path.join(BASE_DIR, "data", "output", "feature_importance_dt.csv")
