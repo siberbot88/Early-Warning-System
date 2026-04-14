@@ -265,6 +265,24 @@ st.markdown(
         border-top: 1px solid {BORDER};
         margin: 1.15rem 0 1.15rem 0;
     }}
+
+    /* TABLET RESPONSIVE (576px - 1024px) */
+    @media screen and (min-width: 576px) and (max-width: 1024px) {{
+        div[data-testid="stHorizontalBlock"] {{
+            flex-wrap: wrap !important;
+            gap: 1rem !important;
+        }}
+        div[data-testid="column"] {{
+            min-width: calc(45% - 1rem) !important;
+            flex-grow: 1 !important;
+        }}
+        .metric-value {{
+            font-size: 1.6rem !important;
+        }}
+        .hero h1 {{
+            font-size: 1.6rem !important;
+        }}
+    }}
     </style>
     """,
     unsafe_allow_html=True,
