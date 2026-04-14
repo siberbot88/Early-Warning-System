@@ -255,10 +255,7 @@ st.markdown(
         overflow: hidden;
     }}
 
-    [data-testid="stSidebar"] {{
-        background: {WHITE};
-        border-right: 1px solid {BORDER};
-    }}
+
 
     hr {{
         border: none;
