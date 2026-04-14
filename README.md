@@ -2,6 +2,8 @@
 
 **Analisis Big Data untuk Deteksi Dini Mahasiswa Berisiko Gagal atau Withdrawal pada Pembelajaran Daring: Studi Kasus The Open University, United Kingdom**
 
+**Akses Dashboard:** [https://early-warning-system-bigdata.streamlit.app/](https://early-warning-system-bigdata.streamlit.app/)
+
 Repositori ini memuat implementasi proyek *Early Warning System* berbasis data menggunakan dataset terbuka OULAD (*Open University Learning Analytics Dataset*). Sistem ini dirancang untuk mendeteksi secara dini mahasiswa yang berisiko gagal (*fail*) atau mengundurkan diri (*withdrawal*) dalam pembelajaran daring, sehingga intervensi akademik dapat dilakukan dengan lebih cepat dan tepat sasaran.
 
 ---
@@ -37,7 +39,7 @@ Sistem memproses data mentah (CSV) dengan siklus hidup sebagai berikut:
 2. **Data Storage:** Data mentah disimpan terpisah pada folder `raw/`. Data bersih dan hasil integrasi pada `processed/`, dan hasil model pada `output/`.
 3. **Data Processing (Cleaning & Transformation):** Penanganan *missing values* (imputasi median pada skor) dan agregasi perilaku VLE level mahasiswa menjadi fitur komprehensif (`total_clicks`, `avg_score`, `assessment_completion_rate`).
 4. **Data Integration:** Penyatuan berbagai sumber (`studentInfo`, `studentVle`, `studentAssessment`) untuk mendapatkan satu representasi berwujud `merged_processed_oulad.csv` dengan pelabelan target `risk_label`.
-5. **Data Visualization:** Dashboard analitik peringatan dini dibangun menggunakan **Streamlit**.
+5. **Data Visualization:** Dashboard analitik peringatan dini dibangun menggunakan **Streamlit** dan di-deploy secara publik melalui [tautan dashboard ini](https://early-warning-system-bigdata.streamlit.app/).
 
 ## Tata Kelola Data (Data Governance & Quality)
 * **Data Ownership:** *The Open University* bertindak sebagai pengendali data (*data controller*). 
